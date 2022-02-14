@@ -15,15 +15,34 @@ export enum ConfigItem {
   DataUsername = "DATA_USERNAME",
   DataPassword = "DATA_PASSWORD",
   LabelPrefix = "LABEL_PREFIX",
-  FilterAuthor = "FILTER_AUTHOR",
-  FilterLabel = "FILTER_LABEL"
+  FilterAuthors = "FILTER_AUTHORS",
+  FilterTeams = "FILTER_TEAMS",
+  FilterLabels = "FILTER_LABELS"
 }
 
-const defaults: Map<ConfigItem, string> = new Map(
-  [[ConfigItem.LabelPrefix, "Team:Applications"]]
+interface ConfigItemOptions {
+  supportsCSV?: boolean
+  defaultValue?: string
+}
+
+const options: Map<ConfigItem, ConfigItemOptions> = new Map(
+  [
+    [ConfigItem.LabelPrefix, {defaultValue: "Team:Applications"}],
+    [ConfigItem.FilterAuthors, {supportsCSV: true}],
+    [ConfigItem.FilterTeams, {supportsCSV: true}],
+    [ConfigItem.FilterLabels, {supportsCSV: true}],
+  ]
 )
 
-const getConfigValue = (item: ConfigItem): string => process.env[item] || defaults.get(item) || ''
+const getConfigValue = (item: ConfigItem): string | string[] => {
+  const {defaultValue, supportsCSV} = options.get(item) || {}
+  const envItem = process.env[item]
+
+  if(!envItem) return defaultValue || (supportsCSV ? [] : '')
+  if(supportsCSV) return envItem.split(';')
+
+  return envItem
+}
 
 for(const key of enumKeys(ConfigItem)) {
   const token = ConfigItem[key]
