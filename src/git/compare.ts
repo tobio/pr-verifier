@@ -63,8 +63,8 @@ export class GitCompare {
       )
     )
 
-    const flatPrs = prs.flatMap(pr => pr.data).map(({url, number: id, labels, user}) => ({
-      url,
+    const flatPrs = prs.flatMap(pr => pr.data).map(({html_url, number: id, labels, user}) => ({
+      url: html_url,
       id,
       labels: labels.map(({name}) => name),
       author: {
