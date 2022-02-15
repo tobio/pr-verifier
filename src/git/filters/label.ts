@@ -8,6 +8,10 @@ export class LabelFilter {
   }
 
   async matches(pr: PullRequest) {
-    return pr.labels.includes(this.label) || this.exclude
+    const isPresent = pr.labels.includes(this.label)
+
+    if(this.exclude) return !isPresent
+
+    return isPresent
   }
 }
