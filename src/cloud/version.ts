@@ -5,7 +5,7 @@ import {VersionParser} from "./parser"
 import fetch from "node-fetch"
 
 const regionsByEnv = new Map([
-  ["qa", "environment"],
+  ["qa", "aws-eu-west-1"],
   ["staging", "us-east-1"],
   ["production", "us-east-1"]
 ])
@@ -20,7 +20,7 @@ export class CloudVersion {
   ) {}
 
   get region(): string {
-    return regionsByEnv[this.environment] || 'us-east-1'
+    return regionsByEnv.get(this.environment) || 'us-east-1'
   }
 
   async getCurrentVersion(): Promise<string> {
