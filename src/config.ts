@@ -39,7 +39,7 @@ const getConfigValue = (item: ConfigItem): string | string[] => {
   const envItem = process.env[item]
 
   if(!envItem) return defaultValue || (supportsCSV ? [] : '')
-  if(supportsCSV) return envItem.split(';')
+  if(supportsCSV) return envItem.split(',')
 
   return envItem
 }
