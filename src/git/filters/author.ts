@@ -20,25 +20,29 @@ class LoginFilter {
 
 @injectable()
 class TeamsFilter {
-  private readonly logins: Promise<Set<string>>
   constructor(
-    @inject(ConfigItem.FilterTeams) teams: string[],
-    @inject(Octokit) octokit: Octokit
-  ) {
-    this.logins = this.fetchLogins(teams, octokit)
-  }
+    @inject(ConfigItem.FilterTeams) private readonly teams: string[],
+    @inject(Octokit) private readonly octokit: Octokit
+  ) {}
 
-  private async fetchLogins(teams: string[], octokit: Octokit): Promise<Set<string>> {
-    const teamAuthors = await Promise.all(
-      teams.map((team) => octokit.request('GET /orgs/{org}/teams/{team_slug}/members', {
-        org: 'elastic',
-        team_slug: team,
-        per_page: 100,
-      }))
-    )
+  private  _logins: Promise<Set<string>> | null = null
+  private get logins(): Promise<Set<string>> {
+    if(!this._logins) {
+      const teamRequests = Promise.all(
+        this.teams.map((team) => this.octokit.request('GET /orgs/{org}/teams/{team_slug}/members', {
+          org: 'elastic',
+          team_slug: team,
+          per_page: 100,
+        }))
+      )
 
-    const authors = teamAuthors.flatMap(({data}) => data).map(({login}) => login)
-    return new Set(authors)
+      this._logins = teamRequests.then((teamAuthors) => {
+        const authors = teamAuthors.flatMap(({data}) => data).map(({login}) => login)
+        return new Set(authors)
+      })
+    }
+
+    return this._logins
   }
 
   async configured() {
