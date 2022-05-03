@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { CloudVersion } from "./cloud/version";
 import { VersionHistory } from "./data/history";
 
-import {container} from "tsyringe"
+import { container } from "tsyringe"
 import { GitCompare } from "./git/compare";
 import { ConfiguredFiltersFilter } from "./git/filters";
 import { GitUpdater } from "./git/updater";

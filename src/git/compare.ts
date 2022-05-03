@@ -3,6 +3,8 @@ import { Octokit } from "@octokit/core"
 import { Endpoints } from "@octokit/types"
 
 type Commits = Endpoints['GET /repos/{owner}/{repo}/compare/{basehead}']["response"]
+type PR = Endpoints['GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls']["response"]["data"][number]
+type PRAuthor = PR["user"]
 
 export interface PullRequest {
   url: string
@@ -17,9 +19,47 @@ export interface Author {
   id: number
 }
 
+const BACKPORT_PR_AUTHOR = "elasticcloudmachine"
+
 @injectable()
-export class GitCompare {
-  constructor(@inject(Octokit) private readonly octokit: Octokit) {}
+class AuthorProviderFactory {
+  private backportAuthorProvider = (pr: PR) => pr.head.user
+  private defaultAuthorProvider = (pr: PR) => pr.user
+
+  getAuthorProviderFor({user}: PR): (pr: PR) => PRAuthor {
+    return user.login === BACKPORT_PR_AUTHOR ? this.backportAuthorProvider : this.defaultAuthorProvider
+  }
+}
+
+@injectable()
+class PullRequestParser {
+  constructor(
+    @inject(AuthorProviderFactory) private readonly authorProviderFactory: AuthorProviderFactory
+  ) {}
+
+  parse(pr: PR): PullRequest {
+    const {html_url: url, number: id, labels} = pr
+    const author = this.authorProviderFactory.getAuthorProviderFor(pr)(pr)
+
+    return {
+      url,
+      id,
+      labels: labels.map(({name}) => name),
+      author: {
+        url: author.url,
+        name: author.login,
+        id: author.id
+      }
+    }
+  }
+}
+
+@injectable()
+class GitCompare {
+  constructor(
+    @inject(Octokit) private readonly octokit: Octokit,
+    @inject(PullRequestParser) private readonly prParser: PullRequestParser
+  ) {}
 
   async compare(base: string, target: string): Promise<PullRequest[]> {
     let parsedPrs = [];
@@ -63,17 +103,8 @@ export class GitCompare {
       )
     )
 
-    const flatPrs = prs.flatMap(pr => pr.data).map(({html_url, number: id, labels, user}) => ({
-      url: html_url,
-      id,
-      labels: labels.map(({name}) => name),
-      author: {
-        url: user.url,
-        name: user.login,
-        id: user.id
-      }
-    }))
-
-    return flatPrs
+    return prs.flatMap(pr => pr.data).map(pr => this.prParser.parse(pr))
   }
 }
+
+export { GitCompare }
