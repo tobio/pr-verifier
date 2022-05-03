@@ -77,13 +77,14 @@ class GitCompare {
       const batchPrs = await this.fetchPRBatchFromCommits(commits)
       parsedPrs = [...parsedPrs, ...batchPrs]
 
-      page = this.getNextPageFromLinks(commits.headers.link.split(','))
+      page = this.getNextPageFromLinks(commits.headers.link?.split(','))
     } while (page)
 
     return parsedPrs
   }
 
-  private getNextPageFromLinks(links: string[]): number | null {
+  private getNextPageFromLinks(links: string[] | undefined): number | null {
+    if(!links) return null
     const nextLink = links.filter(link => link.includes('rel="next"'))[0]
     if(!nextLink) return null
 
@@ -93,6 +94,8 @@ class GitCompare {
   }
 
   private async fetchPRBatchFromCommits(commits: Commits): Promise<Array<PullRequest>> {
+    if (!commits.data.commits) return []
+
     const prs = await Promise.all(
       commits.data.commits.map(
         commit => this.octokit.request('GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls', {
