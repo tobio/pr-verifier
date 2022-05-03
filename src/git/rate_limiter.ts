@@ -1,18 +1,23 @@
-import {inject, container, singleton, registry} from "tsyringe"
+import {inject, injectable, singleton, registry} from "tsyringe"
 import { ConfigItem } from "../config"
 import { Octokit } from "@octokit/core"
+import { RequestError } from "@octokit/request-error"
 
-@singleton()
 @registry([
   {
     token: Octokit,
     useFactory: (c) => {
       const octokit = new Octokit({auth: c.resolve(ConfigItem.GithubApiKey)})
       const rateLimiter = c.resolve(RateLimiter)
+      const secondaryLimiter = c.resolve(SecondaryRateLimiter)
+
       return new Proxy(octokit, {
         get: (target, property, receiver) => {
           if(property === 'request') {
-            return (...args) => rateLimiter.request().then(() => target.request.apply(target, args))
+            return async (...args) => {
+              await rateLimiter.request()
+              return await secondaryLimiter.attemptRequest(target.request.bind(target, ...args))
+            }
           }
 
           return Reflect.get(target, property, receiver)
@@ -21,6 +26,36 @@ import { Octokit } from "@octokit/core"
     }
   }
 ])
+
+@injectable()
+class SecondaryRateLimiter {
+  async attemptRequest(request: () => Promise<any>) {
+    const attempts = 3
+    for(let i = 0; i < attempts; i++) {
+      try {
+        return await request()
+      } catch (err) {
+        const shouldRetry = await this.handleRequestError(err)
+        if(!shouldRetry) throw err
+      }
+    }
+  }
+
+  async handleRequestError(err): Promise<boolean> {
+    if(!(err instanceof RequestError)) return false
+    if(!err.response) return false
+    if(!('retry-after' in err.response.headers)) return false
+
+    const retryAfterSeconds = parseInt(err.response.headers['retry-after'].toString(), 10)
+
+    console.log(`Secondary rate limit imposed, waiting ${retryAfterSeconds} seconds`)
+    await new Promise(resolve => setTimeout(resolve, retryAfterSeconds * 1000))
+    return true
+  }
+}
+
+@singleton()
+@injectable()
 export class RateLimiter {
   private remaining: number | null = null
   private reset: Promise<void>
@@ -59,6 +94,8 @@ export class RateLimiter {
       this.remaining--
       return
     }
+
+    console.log("Github rate limit exhausted. Waiting until limit reset")
 
     await this.reset
     await this.request()
